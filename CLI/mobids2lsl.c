@@ -81,7 +81,7 @@ int main( int argc, const char * argv[] )
   // Start Impedance acquisition hopefully :crossed-fingers:
   printf("Starting impedance acquisition\n");
   DSI_Headset_StartImpedanceDriver(h); CHECK
-  
+
   // Start streaming
   printf("Streaming...\n");
   while( KeepRunning==1 ){
@@ -99,13 +99,16 @@ int main( int argc, const char * argv[] )
 
 lsl_outlet InitImpedanceLSL(DSI_Headset h, const char * streamName)
 {
-  unsigned int numberOfChannels = DSI_Headset_GetNumberOfChannels(h);
+  unsigned int numberOfSources= DSI_Headset_GetNumberOfSources(h);
+
+
+
   char impedance_stream_name[256];
   snprintf(impedance_stream_name, sizeof(impedance_stream_name), "%s_Impedance", streamName);
 
   // Create impedance stream info (1 Hz since impedance changes slowly)
   lsl_streaminfo info = lsl_create_streaminfo(impedance_stream_name, "Impedance",
-                                             numberOfChannels, 1.0, cft_float32, "impedance_source");
+                                             numberOfSources, 1.0, cft_float32, "impedance_source");
 
   // Add metadata
   lsl_xml_ptr desc = lsl_get_desc(info);
@@ -113,10 +116,10 @@ lsl_outlet InitImpedanceLSL(DSI_Headset h, const char * streamName)
 
   // Describe channel info for impedance
   lsl_xml_ptr chns = lsl_append_child(desc, "channels");
-  for(unsigned int channelIndex = 0; channelIndex < numberOfChannels; channelIndex++) {
+  for(unsigned int channelIndex = 0; channelIndex < numberOfSources; channelIndex++) {
     lsl_xml_ptr chn = lsl_append_child(chns, "channel");
 
-    char *long_label = (char*) DSI_Channel_GetString(DSI_Headset_GetChannelByIndex(h, channelIndex));
+    char *long_label = (char*) DSI_Source_GetName(DSI_Headset_GetSourceByIndex(h, channelIndex));
     char *short_label = strtok(long_label, "-");
     if(short_label == NULL)
       short_label = long_label;
@@ -130,11 +133,11 @@ lsl_outlet InitImpedanceLSL(DSI_Headset h, const char * streamName)
 }
 
 void SendImpedanceData(DSI_Headset h, lsl_outlet impedance_outlet) {
-  unsigned int numberOfChannels = DSI_Headset_GetNumberOfChannels(h);
-  float *impedance_sample = malloc(numberOfChannels * sizeof(float));
+  unsigned int numberOfSources = DSI_Headset_GetNumberOfSources(h);
+  float *impedance_sample = malloc(numberOfSources * sizeof(float));
 
   // Loop through each source directly (not through channels)
-  for (unsigned int sourceIndex = 0; sourceIndex < numberOfChannels; sourceIndex++) {
+  for (unsigned int sourceIndex = 0; sourceIndex < numberOfSources; sourceIndex++) {
     // Get the source directly by index
     DSI_Source source = DSI_Headset_GetSourceByIndex(h, sourceIndex);
 
