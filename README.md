@@ -1,3 +1,8 @@
+# TODO
+
+WE MADE CHANGES TO THIS PROCESS
+
+
 # Wearable Sensing LSL (dsi2lsl) 
 
 This application supports several dry/wireless EEG headsets made by [Wearable Sensing](http://www.wearablesensing.com).
