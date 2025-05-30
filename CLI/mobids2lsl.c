@@ -99,52 +99,79 @@ int main( int argc, const char * argv[] )
 
 lsl_outlet InitImpedanceLSL(DSI_Headset h, const char * streamName)
 {
-  unsigned int numberOfSources= DSI_Headset_GetNumberOfSources(h);
+    unsigned int sourceIndex;
+    unsigned int numberOfSources = DSI_Headset_GetNumberOfSources(h);
+    
+    // Count EEG sources first
+    unsigned int eegSourceCount = 0;
+    for(sourceIndex = 0; sourceIndex < numberOfSources; sourceIndex++) {
+        DSI_Source s = DSI_Headset_GetSourceByIndex(h, sourceIndex);
+        if(DSI_Source_IsReferentialEEG(s) && !DSI_Source_IsFactoryReference(s)) {
+            eegSourceCount++;
+        }
+    }
+    
+    // Create impedance stream name
+    char impedance_stream_name[256];
+    snprintf(impedance_stream_name, sizeof(impedance_stream_name), "%s_Impedance", streamName);
+    
+    // Create stream info
+    lsl_streaminfo info = lsl_create_streaminfo(impedance_stream_name, "Impedance", 
+                                               eegSourceCount, 1.0, cft_float32, "impedance_source");
+    
+    // Add metadata
+    lsl_xml_ptr desc = lsl_get_desc(info);
+    lsl_append_child_value(desc, "manufacturer", "WearableSensing");
+    
+    // Describe channels using actual source names
+    lsl_xml_ptr chns = lsl_append_child(desc, "channels");
+    for(sourceIndex = 0; sourceIndex < numberOfSources; sourceIndex++) {
+        DSI_Source s = DSI_Headset_GetSourceByIndex(h, sourceIndex);
+        if(DSI_Source_IsReferentialEEG(s) && !DSI_Source_IsFactoryReference(s)) {
+            lsl_xml_ptr chn = lsl_append_child(chns, "channel");
+            
+            // Use DSI_Source_GetName() to get the actual source name
+      char *long_label = (char*) DSI_Source_GetName(s);
+      char *short_label = strtok(long_label, "-");
+      if(short_label == NULL)
+        short_label = long_label;
 
+      lsl_append_child_value(chn, "label", short_label);
+      lsl_append_child_value(chn, "unit", "ohms");
+      lsl_append_child_value(chn, "type", "Impedance");
 
-
-  char impedance_stream_name[256];
-  snprintf(impedance_stream_name, sizeof(impedance_stream_name), "%s_Impedance", streamName);
-
-  // Create impedance stream info (1 Hz since impedance changes slowly)
-  lsl_streaminfo info = lsl_create_streaminfo(impedance_stream_name, "Impedance",
-                                             numberOfSources, 1.0, cft_float32, "impedance_source");
-
-  // Add metadata
-  lsl_xml_ptr desc = lsl_get_desc(info);
-  lsl_append_child_value(desc, "manufacturer", "WearableSensing");
-
-  // Describe channel info for impedance
-  lsl_xml_ptr chns = lsl_append_child(desc, "channels");
-  for(unsigned int channelIndex = 0; channelIndex < numberOfSources; channelIndex++) {
-    lsl_xml_ptr chn = lsl_append_child(chns, "channel");
-
-    char *long_label = (char*) DSI_Source_GetName(DSI_Headset_GetSourceByIndex(h, channelIndex));
-    char *short_label = strtok(long_label, "-");
-    if(short_label == NULL)
-      short_label = long_label;
-
-    lsl_append_child_value(chn, "label", short_label);
-    lsl_append_child_value(chn, "unit", "ohms");
-    lsl_append_child_value(chn, "type", "Impedance");
-  }
-
-  return lsl_create_outlet(info, 0, 360);
+        }
+    }
+    
+    return lsl_create_outlet(info, 0, 360);
 }
 
 void SendImpedanceData(DSI_Headset h, lsl_outlet impedance_outlet) {
+  unsigned int sourceIndex;
   unsigned int numberOfSources = DSI_Headset_GetNumberOfSources(h);
-  float *impedance_sample = malloc(numberOfSources * sizeof(float));
-
-  // Loop through each source directly (not through channels)
-  for (unsigned int sourceIndex = 0; sourceIndex < numberOfSources; sourceIndex++) {
-    // Get the source directly by index
-    DSI_Source source = DSI_Headset_GetSourceByIndex(h, sourceIndex);
-
-    // Get the EEG impedance value for this source
-    impedance_sample[sourceIndex] = (float)DSI_Source_GetImpedanceEEG(source);
-  }
-
+    
+    // First pass: count how many EEG sources we have (same filtering as the example)
+  unsigned int eegSourceCount = 0;
+  for(sourceIndex = 0; sourceIndex < numberOfSources; sourceIndex++) {
+    DSI_Source s = DSI_Headset_GetSourceByIndex(h, sourceIndex);
+    if(DSI_Source_IsReferentialEEG(s) && !DSI_Source_IsFactoryReference(s)) {
+      eegSourceCount++;
+      }
+    }
+    
+    // Allocate array for EEG impedance data only
+  float *impedance_sample = malloc(eegSourceCount * sizeof(float));
+  unsigned int sampleIndex = 0;
+    
+    // Second pass: collect impedance values (following the example pattern)
+  for(sourceIndex = 0; sourceIndex < numberOfSources; sourceIndex++) {
+    DSI_Source s = DSI_Headset_GetSourceByIndex(h, sourceIndex);
+    if(DSI_Source_IsReferentialEEG(s) && !DSI_Source_IsFactoryReference(s)) {
+            // Get impedance value instead of printing it
+      impedance_sample[sampleIndex] = (float)DSI_Source_GetImpedanceEEG(s);
+      sampleIndex++;
+      }
+    }
   // Send the impedance sample to LSL
   lsl_push_sample_f(impedance_outlet, impedance_sample);
 
